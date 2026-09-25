@@ -1,0 +1,33 @@
+# Fork-only verification of the mpg123 project on MSVC. Not part of the upstream PR.
+name: mpg123 check
+on:
+  push:
+    branches: [ci-mpg123]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --no-dev
+      - name: Build mpg123 + gst-plugins-good
+        run: uv run gvsbuild build --ninja-opts -j2 mpg123 gst-plugins-good
+      - name: Check plugin
+        shell: pwsh
+        run: |
+          $root = "C:\gtk-build\gtk\x64\release"
+          $env:PATH = "$root\bin;$env:PATH"
+          Get-ChildItem "$root\bin\*mpg123*", "$root\lib\*mpg123*", "$root\lib\pkgconfig\libmpg123.pc"
+          $dll = "$root\lib\gstreamer-1.0\gstmpg123.dll"
+          if (-not (Test-Path $dll)) { Write-Error "missing $dll"; exit 1 }
+          & "$root\bin\gst-inspect-1.0.exe" mpg123
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & "$root\bin\gst-launch-1.0.exe" -q filesrc location=.github/mpg123-check/tone.mp3 ! mpegaudioparse ! mpg123audiodec ! audioconvert ! fakesink
+          if ($LASTEXITCODE -ne 0) { exit 1 }
