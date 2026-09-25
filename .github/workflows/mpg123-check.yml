@@ -18,7 +18,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --no-dev
       - name: Build mpg123 + gst-plugins-good
-        run: uv run gvsbuild build --ninja-opts -j2 mpg123 gst-plugins-good
+        run: uv run gvsbuild build --ninja-opts -j2 --skip libvpx mpg123 gst-plugins-good
       - name: Check plugin
         shell: pwsh
         run: |
