@@ -158,6 +158,50 @@ jobs:
         with:
           name: gvsbuild-${{ github.event.release.tag_name }}-py3-none-any.whl
           path: dist/gvsbuild-${{ github.event.release.tag_name }}-py3-none-any.whl
+  build-arm64:
+    needs: lint
+    name: Build GTK4 Binaries (ARM64)
+    # Native Windows on ARM, so this job is also the check that every tool and
+    # every project of the stack has an arm64 build or degrades gracefully.
+    runs-on: windows-11-arm
+    permissions:
+      contents: read
+    # The emulated x64 tools are slower than on x64, hence the longer budget.
+    timeout-minutes: 240
+    if: "!contains(github.event.head_commit.message, 'skip ci')"
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.python_version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Install the project
+        run: uv sync --no-dev
+      - name: Build GTK4
+        run: > # Use -j2 option to prevent out of memory errors with GitHub Action runners
+          uv run gvsbuild build --ninja-opts -j2 --enable-gi --platform arm64
+          gtk4 libadwaita gtksourceview5 gobject-introspection
+          gstreamer gst-plugins-base gst-plugins-good libsoup3 libvorbis
+      - name: Archive GTK runtime
+        run: 7z a -tzip GTK4_Gvsbuild_${{ github.sha }}_arm64.zip C:\gtk-build\gtk\ARM64\release\*
+      - name: Upload GTK4_Gvsbuild-${{ github.sha }}-arm64.zip
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: GTK4_Gvsbuild_${{ github.sha }}_arm64.zip
+          path: GTK4_Gvsbuild_${{ github.sha }}_arm64.zip
   publish-to-pypi:
     name: Publish to PyPI (release only)
     needs: build
