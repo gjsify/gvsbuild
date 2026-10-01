@@ -21,6 +21,20 @@ import time
 
 from .simple_ui import log
 
+# Spellings we accept for the 64-bit ARM target, both on the command line and
+# after the builder normalization ("ARM64" is the one we use from then on).
+ARM64_NAMES = ("arm64", "ARM64", "aarch64")
+
+
+def is_arm64(target):
+    """Return True if target names 64-bit ARM.
+
+    target can be the raw value coming from the command line ("arm64",
+    "aarch64", ...) or the normalized "ARM64" the builder works with, so
+    projects/tools can ask this before the Builder had a chance to run.
+    """
+    return target in ARM64_NAMES
+
 
 def convert_to_msys(path):
     path = path

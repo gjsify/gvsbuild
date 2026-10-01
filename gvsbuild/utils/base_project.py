@@ -43,6 +43,9 @@ class Options:
         self.verbose = False
         self.debug = False
         self.platform = "x64"
+        self.x86 = False
+        self.x64 = True
+        self.arm64 = False
         self.configuration = "release"
         self.release_configuration_is_actually_debug_optimized = False
         self.build_dir = None

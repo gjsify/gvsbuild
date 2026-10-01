@@ -97,6 +97,7 @@ def __parse_extra_opts(extra_opts: list[str]) -> dict[str, list[str]]:
 class Platform(str, Enum):
     x64 = "x64"
     x86 = "x86"
+    arm64 = "arm64"
 
 
 class Configuration(str, Enum):
@@ -205,7 +206,7 @@ def build(
 
     Args:
         projects: The project to build.
-        platform: The platform to build for.
+        platform: The platform to build for: "x64", "x86" or "arm64" (native Windows on ARM64).
         configuration: The configuration to build for. "debug-optimized" only includes debug symbols for Meson and CMake projects - other projects' build tools will interpret the option as "release".
         build_dir: The full or relative path of the directory to build in.
         msys_dir: The directory of the msys installation. If not specified, automatically searches in common locations.

@@ -19,12 +19,23 @@ import pytest
 from gvsbuild.utils.utils import (
     convert_to_msys,
     file_replace,
+    is_arm64,
     ordered_set,
     python_find_libs_dir,
     read_file,
     rmtree_full,
     write_file,
 )
+
+
+@pytest.mark.parametrize("target", ["arm64", "ARM64", "aarch64"])
+def test_is_arm64(target):
+    assert is_arm64(target)
+
+
+@pytest.mark.parametrize("target", ["x64", "x86", "Win32", "amd64", "ARM", ""])
+def test_is_not_arm64(target):
+    assert not is_arm64(target)
 
 
 def test_convert_to_msys():

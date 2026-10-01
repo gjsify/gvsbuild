@@ -179,6 +179,8 @@ def cargo_builder(builder, mocker):
     """Builder with cargo prerequisites pre-configured."""
     builder.opts.cargo_opts = None
     builder.x86 = False
+    builder.x64 = True
+    builder.arm64 = False
     mocker.patch(
         "gvsbuild.utils.builder.Project.get_tool_path", return_value="C:\\cargo"
     )
