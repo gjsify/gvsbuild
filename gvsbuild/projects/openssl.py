@@ -18,6 +18,20 @@ from pathlib import Path
 
 from gvsbuild.utils.base_expanders import Tarball
 from gvsbuild.utils.base_project import Project, project_add
+from gvsbuild.utils.utils import is_arm64
+
+
+def _configure_target(builder) -> str:
+    """The openssl Configure target for the platform we build for.
+
+    Note the arm64 one is not a 'VC-WIN64A' variant: MSVC arm64 is its own
+    target because the assembler and the object format differ.
+    """
+    if builder.x86:
+        return "VC-WIN32"
+    if builder.arm64:
+        return "VC-WIN64-ARM"
+    return "VC-WIN64A"
 
 
 @project_add
@@ -32,10 +46,13 @@ class OpenSSL(Tarball, Project):
             hash="243a86649cf6f23eeb6a2ff2456e09e5d77dd9018a54d3d96b0c6bdd6ba6c7f1",
             dependencies=[
                 "perl",
-                "nasm",
                 "msys2",
             ],
         )
+        if not is_arm64(self.opts.platform):
+            # nasm only assembles the x86 (VC-WIN32/VC-WIN64A) hand written
+            # asm, the arm64 target has none.
+            self.add_dependency("nasm")
 
     def build(self):
         perl_exe = (
@@ -45,8 +62,7 @@ class OpenSSL(Tarball, Project):
         )
         gtk_dir = Path(self.builder.gtk_dir)
         debug_option = "debug-" if self.builder.opts.configuration == "debug" else ""
-        target = "VC-WIN32" if self.builder.x86 else "VC-WIN64A"
-        configure_target = f"{debug_option}{target}"
+        configure_target = f"{debug_option}{_configure_target(self.builder)}"
 
         self.exec_vs(
             [
@@ -97,8 +113,7 @@ class OpenSSLFips(Tarball, Project):
         )
         gtk_dir = Path(self.builder.gtk_dir)
         debug_option = "debug-" if self.builder.opts.configuration == "debug" else ""
-        target = "VC-WIN32" if self.builder.x86 else "VC-WIN64A"
-        configure_target = f"{debug_option}{target}"
+        configure_target = f"{debug_option}{_configure_target(self.builder)}"
 
         self.exec_vs(
             [

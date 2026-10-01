@@ -16,6 +16,7 @@
 from gvsbuild.utils.base_builders import CmakeProject
 from gvsbuild.utils.base_expanders import Tarball
 from gvsbuild.utils.base_project import Project, project_add
+from gvsbuild.utils.utils import is_arm64
 
 
 @project_add
@@ -31,9 +32,11 @@ class LibjpegTurbo(Tarball, CmakeProject):
             dependencies=[
                 "cmake",
                 "ninja",
-                "nasm",
             ],
         )
+        if not is_arm64(self.opts.platform):
+            # nasm assembles the x86 SIMD, arm64 has no x86 code at all.
+            self.add_dependency("nasm")
 
     def build(self):
         # Keeping the env var support might be slow:

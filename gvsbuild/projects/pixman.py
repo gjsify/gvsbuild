@@ -32,15 +32,25 @@ class Pixman(Tarball, Meson):
         )
 
     def build(self):
-        enable_mmx = "disabled" if self.builder.x64 else "enabled"
-        Meson.build(
-            self,
-            meson_params=[
+        if self.builder.arm64:
+            # The x86 SIMD options do not exist on arm64: pixman fails with
+            # '<opt> Support unavailable, but required' when they are
+            # explicitly enabled on a non x86 cpu family.
+            simd_params = [
+                "-Dsse2=disabled",
+                "-Dssse3=disabled",
+                "-Dmmx=disabled",
+            ]
+        else:
+            enable_mmx = "disabled" if self.builder.x64 else "enabled"
+            simd_params = [
                 "-Dsse2=enabled",
                 "-Dssse3=enabled",
                 f"-Dmmx={enable_mmx}",
-                "-Dtests=disabled",
-            ],
+            ]
+        Meson.build(
+            self,
+            meson_params=simd_params + ["-Dtests=disabled"],
         )
 
         self.install(r".\COPYING share\doc\pixman")
