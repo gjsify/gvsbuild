@@ -32,5 +32,9 @@ class Libvorbis(Tarball, CmakeProject):
         )
 
     def build(self):
-        CmakeProject.build(self, use_ninja=True)
+        CmakeProject.build(
+            self,
+            use_ninja=True,
+            cmake_params=["-DCMAKE_POLICY_VERSION_MINIMUM=3.5"],
+        )
         self.install(r".\COPYING share\doc\libvorbis")
