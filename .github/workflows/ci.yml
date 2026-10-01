@@ -190,9 +190,10 @@ jobs:
           cache-dependency-glob: "uv.lock"
       - name: Install the project
         run: uv sync --no-dev
+      # windows-11-arm only ships Visual Studio 2026, the default target is 2022.
       - name: Build GTK4
         run: > # Use -j2 option to prevent out of memory errors with GitHub Action runners
-          uv run gvsbuild build --ninja-opts -j2 --enable-gi --platform arm64
+          uv run gvsbuild build --ninja-opts -j2 --enable-gi --vs-ver vs2026 --platform arm64
           gtk4 libadwaita gtksourceview5 gobject-introspection
           gstreamer gst-plugins-base gst-plugins-good libsoup3 libvorbis
       - name: Archive GTK runtime
