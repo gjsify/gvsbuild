@@ -1114,8 +1114,34 @@ class Builder:
     def __add_path(self, env, folder):
         key = next((k for k in env if k.lower() == "path"), None)
         if key:
-            env[key] = f"{env[key]};{folder}"
+            env[key] = f"{self.__without_foreign_msys(env[key], folder)};{folder}"
         else:
             key = "path"
             env[key] = folder
         log.debug(f"Changed path env variable to '{env[key]}'")
+
+    def __without_foreign_msys(self, path, folder):
+        """Drop other msys runtimes (Git for Windows' usr\\bin) from PATH when
+        msys2's tools are added.
+
+        msys2 goes at the end of PATH so that its link.exe cannot shadow MSVC's,
+        which lets an earlier msys runtime win for cat, mv & co. Two
+        msys-2.0.dll runtimes disagree on what /tmp is: libvpx's configure, run
+        by msys2's bash, wrote its probes to one /tmp while Git's cat and mv
+        looked in the other, so every check failed silently and the Makefile
+        came out with no targets to build.
+        """
+        if not self.opts.msys_dir:
+            return path
+        msys = Path(self.opts.msys_dir, "usr", "bin")
+        if Path(folder) != msys:
+            return path
+
+        def is_foreign(entry):
+            return (
+                bool(entry)
+                and Path(entry) != msys
+                and (Path(entry) / "msys-2.0.dll").is_file()
+            )
+
+        return ";".join(e for e in path.split(";") if not is_foreign(e))
