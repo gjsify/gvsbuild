@@ -26,8 +26,11 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program; if not, see <http://www.gnu.org/licenses/>.
 
+import os
+
 from gvsbuild.utils.base_expanders import Tarball
 from gvsbuild.utils.base_project import Project, project_add
+from gvsbuild.utils.utils import file_replace
 
 
 @project_add
@@ -44,6 +47,13 @@ class Zlib(Tarball, Project):
         )
 
     def build(self):
+        if self.builder.arm64:
+            # The makefile pins the DLL to a fixed base below 4 GB, which the
+            # ARM64 linker rejects (LNK1355).
+            file_replace(
+                os.path.join(self.build_dir, "win32", "Makefile.msc"),
+                [(r" -base:0x[0-9A-Fa-f]+", "")],
+            )
         cmd = [
             "nmake",
             "/nologo",
