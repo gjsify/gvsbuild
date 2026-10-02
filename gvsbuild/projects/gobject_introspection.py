@@ -45,6 +45,8 @@ class GObjectIntrospection(Tarball, Meson):
                 "001-incorrect-giscanner-path.patch",
                 # https://gitlab.gnome.org/GNOME/gobject-introspection/-/issues/575
                 "002-python314-msvccompiler-init.patch",
+                # https://developercommunity.visualstudio.com/t/Spurious-C7772-C1903-in-2026-Insiders-wh/11082089
+                "003-msvc2026-macro-quotes.patch",
             ],
         )
 

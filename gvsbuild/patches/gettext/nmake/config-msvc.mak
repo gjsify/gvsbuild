@@ -172,8 +172,12 @@ LIBGETTEXTSRC_INCLUDES =	\
 	/I..\gettext-runtime\intl	\
 	$(BASE_GETTEXT_TOOLS_INCLUDES)
 
+# Not LIBXML_STATIC: the bundled libxml lives in gettextlib-*.dll, and its data
+# exports (xmlFree) must be reached through __imp_. Without dllimport the
+# reference binds to the import thunk, which arm64's LDR cannot address
+# (LNK2048, 4-byte aligned thunk vs. 8-byte load) and x64 loads as data.
 LIBGETTEXTSRC_CFLAGS =	\
-	$(GETTEXT_TOOLS_GNULIB_CFLAGS)	\
+	$(GETTEXT_RUNTIME_GNULIB_CFLAGS)	\
 	/DBISON_LOCALEDIR=\"c:/vs$(VSVER).0/$(PLAT)/share/locale\"	\
 	/DUSE_JAVA=0	\
 	/DGETTEXTJAR=\"c:/vs$(VSVER).0/$(PLAT)/share/gettext/gettext.jar\"	\

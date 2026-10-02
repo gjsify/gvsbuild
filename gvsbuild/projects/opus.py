@@ -38,5 +38,16 @@ class Opus(Tarball, Meson):
         self.add_param("-Ddocs=disabled")
 
     def build(self):
-        Meson.build(self)
+        meson_params = []
+        if self.builder.arm64:
+            # opus' NEON detection only asks whether <arm_neon.h> compiles, so
+            # it finds NEON on an MSVC arm64 target and builds
+            # dnn/arm/nnet_neon.c -- which then refuses to compile because it
+            # requires __ARM_NEON/__ARM_NEON__. Those are GCC and clang
+            # spellings MSVC never defines: NEON is part of the arm64 baseline,
+            # so MSVC has no reason to advertise it. We build opus without
+            # deep-plc, where the intrinsics would matter, so turn them off
+            # instead of patching the compiler's predefined macros.
+            meson_params.append("-Dintrinsics=disabled")
+        Meson.build(self, meson_params=meson_params)
         self.install(r"COPYING share\doc\opus")

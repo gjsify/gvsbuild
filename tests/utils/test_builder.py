@@ -127,3 +127,48 @@ def test_vs_check_success(tmp_path):
     vcvars_path.parent.mkdir(parents=True)
     vcvars_path.write_text("SET FOO=BAR")
     builder._Builder__check_vs_install(opts, str(tmp_path), False)
+
+
+def test_platform_normalization(tmp_path, mocker):
+    """The platform name is normalized to what msvc wants, and the arch flags follow."""
+    mocker.patch.object(Builder, "_Builder__check_tools")
+    mocker.patch.object(Builder, "_Builder__check_vs")
+    opts = Options()
+    opts.platform = "arm64"
+    opts.build_dir = str(tmp_path)
+    builder = Builder(opts)
+
+    assert opts.platform == "ARM64"
+    assert builder.filename_arch == "arm64"
+    assert not opts.x86
+    assert not opts.x64
+    assert opts.arm64
+    assert not builder.x86
+    assert not builder.x64
+    assert builder.arm64
+
+
+@pytest.mark.parametrize(
+    "host_arch, expected",
+    [
+        # A native arm64 host builds arm64 with the arm64 tools, everything
+        # else (x64 native or emulated) has to cross compile.
+        ("ARM64", "vcvarsarm64.bat"),
+        ("AMD64", "vcvarsamd64_arm64.bat"),
+        ("aarch64", "vcvarsarm64.bat"),
+    ],
+)
+def test_vs_check_arm64_picks_host_vcvars(tmp_path, mocker, host_arch, expected):
+    opts = Options()
+    opts.platform = "ARM64"
+    builder = Builder.__new__(Builder)
+    builder.opts = opts
+    vcvars_path = tmp_path / "VC" / "Auxiliary" / "Build" / expected
+    vcvars_path.parent.mkdir(parents=True)
+    vcvars_path.write_text("SET FOO=BAR")
+    mocker.patch("gvsbuild.utils.builder.platform.machine", return_value=host_arch)
+    mocker.patch(
+        "gvsbuild.utils.builder.subprocess.check_output", return_value="SET FOO=BAR"
+    )
+
+    builder._Builder__check_vs_install(opts, str(tmp_path), False)

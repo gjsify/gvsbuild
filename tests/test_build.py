@@ -62,6 +62,22 @@ def test_platform(tmp_dir, app, runner):
     assert result.exit_code in [0, 1]
 
 
+def test_platform_arm64(app, runner):
+    """Test that arm64 is a valid --platform choice."""
+    result = runner.invoke(app, ["build", "--help"])
+    assert "arm64" in result.output
+    result = runner.invoke(app, ["build", "--platform", "arm64", "hello-world"])
+    # not an argument error (2), the build itself may fail on a bare test box
+    assert result.exit_code != 2
+
+
+def test_platform_unknown(app, runner):
+    result = runner.invoke(app, ["build", "--platform", "sparc", "hello-world"])
+    full_output = result.output + result.stderr
+    assert result.exit_code != 0
+    assert "sparc" in full_output
+
+
 def test_ninja_opts_validation_valid_single_dash(app, runner):
     """Test that ninja-opts accepts valid single-dash options."""
     result = runner.invoke(app, ["build", "--ninja-opts", "-j2", "hello-world"])

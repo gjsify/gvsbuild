@@ -17,7 +17,7 @@ from pathlib import Path
 
 from gvsbuild.utils.base_expanders import Tarball
 from gvsbuild.utils.base_project import Project, project_add
-from gvsbuild.utils.utils import convert_to_msys
+from gvsbuild.utils.utils import convert_to_msys, is_arm64
 
 
 @project_add
@@ -31,25 +31,41 @@ class Libvpx(Tarball, Project):
             archive_url="https://github.com/webmproject/libvpx/archive/v{version}.tar.gz",
             archive_filename="libvpx-v{version}.tar.gz",
             hash="1020f184046187baa2985dbde38e0691f49c44088bca7a1842b0236c6081dc0a",
-            dependencies=["nasm", "msys2", "libyuv", "perl"],
+            dependencies=["msys2", "libyuv", "perl"],
             patches=[
                 "0006-gen_msvs_vcxproj.sh-Select-current-Windows-SDK-if-av.patch",
                 "0001-Always-generate-pc-file.patch",
             ],
         )
+        if not is_arm64(self.opts.platform):
+            # nasm is only used to assemble the x86 SIMD code.
+            self.add_dependency("nasm")
 
     def build(self):
-        configure_options = (
-            "--enable-pic --as=nasm --disable-unit-tests --size-limit=16384x16384 "
-            "--enable-postproc --enable-multi-res-encoding --enable-temporal-denoising "
-            "--enable-vp9-temporal-denoising --enable-vp9-postproc --disable-tools "
-            "--disable-examples --disable-docs "
-        )
+        if self.builder.arm64:
+            # arm64 has no x86 SIMD assembly to assemble, so we must not ask
+            # for nasm: upstream's configure only defaults to nasm for the x86
+            # targets and picks the MSVC arm64 flags itself.
+            target = "arm64-win64-vs" + self.builder.opts.vs_ver
+            configure_options = (
+                "--enable-pic --disable-unit-tests --size-limit=16384x16384 "
+                "--enable-postproc --enable-multi-res-encoding "
+                "--enable-temporal-denoising --enable-vp9-temporal-denoising "
+                "--enable-vp9-postproc --disable-tools --disable-examples "
+                "--disable-docs "
+            )
+        else:
+            target = "x86-win32-vs" if self.builder.x86 else "x86_64-win64-vs"
+            target += self.builder.opts.vs_ver
+            configure_options = (
+                "--enable-pic --as=nasm --disable-unit-tests "
+                "--size-limit=16384x16384 --enable-postproc "
+                "--enable-multi-res-encoding --enable-temporal-denoising "
+                "--enable-vp9-temporal-denoising --enable-vp9-postproc "
+                "--disable-tools --disable-examples --disable-docs "
+            )
         if self.builder.opts.configuration == "debug":
-            configure_options += "--enable-debug_libs"
-
-        target = "x86-win32-vs" if self.builder.x86 else "x86_64-win64-vs"
-        target += self.builder.opts.vs_ver
+            configure_options += " --enable-debug_libs"
 
         msys_path = Project.get_tool_path("msys2")
 
@@ -76,7 +92,14 @@ class Libvpx(Tarball, Project):
             lib_name = "vpxmdd.lib"
         else:
             lib_name = "vpxmd.lib"
-        lib_path = f"Win32/{lib_name}" if self.builder.x86 else f"x64/{lib_name}"
+        # The sub directory is the Visual Studio platform name of the target,
+        # so it is 'ARM64' for the arm64 build.
+        if self.builder.x86:
+            lib_path = f"Win32/{lib_name}"
+        elif self.builder.arm64:
+            lib_path = f"ARM64/{lib_name}"
+        else:
+            lib_path = f"x64/{lib_name}"
         self.builder.exec_msys(
             ["mv", lib_path, "./vpx.lib"],
             working_dir=Path(self.builder.gtk_dir) / "lib",

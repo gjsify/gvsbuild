@@ -33,11 +33,16 @@ class Icu(Tarball, Project):
         )
 
     def build(self):
-        bindir = r".\bin"
-        libdir = r".\lib"
-        if not self.builder.x86:
-            bindir += "64"
-            libdir += "64"
+        # The output dirs come from upstream's Build.Windows.ProjectConfiguration.props,
+        # one per Visual Studio platform name: bin/lib, bin64/lib64, binARM64/libARM64.
+        if self.builder.x86:
+            suffix = ""
+        elif self.builder.arm64:
+            suffix = "ARM64"
+        else:
+            suffix = "64"
+        bindir = r".\bin" + suffix
+        libdir = r".\lib" + suffix
         if self.opts.vs_ver != "15":
             # Not Vs2017, we change the platform
             search, replace = self._msbuild_make_search_replace(141)

@@ -21,6 +21,7 @@ import glob
 import hashlib
 import json
 import os
+import platform
 import re
 import shutil
 import ssl
@@ -34,11 +35,22 @@ from urllib.request import urlopen
 from .base_expanders import dirlist2set, make_zip
 from .base_project import Project
 from .simple_ui import log, script_title
-from .utils import ordered_set, rmtree_full
+from .utils import is_arm64, ordered_set, rmtree_full
 
 
 class CheckVsInstallError(Exception):
     pass
+
+
+def _host_is_arm64() -> bool:
+    """Return True when we run natively on 64-bit ARM.
+
+    On Windows on ARM an x64 interpreter is emulated and platform.machine()
+    still reports AMD64, which is exactly what we want: the emulated x64
+    compiler cross compiles and needs the amd64 -> arm64 vcvars script, the
+    native one uses the plain arm64 script.
+    """
+    return is_arm64(platform.machine().lower())
 
 
 class Builder:
@@ -56,10 +68,18 @@ class Builder:
             opts.platform = "x64"
             self.filename_arch = "x64"
             opts.x86 = False
+        elif is_arm64(opts.platform):
+            # msbuild wants the platform spelled 'ARM64', we keep that
+            # everywhere (dirs, /p:Platform) and the shorter one only for
+            # the file names.
+            opts.platform = "ARM64"
+            self.filename_arch = "arm64"
+            opts.x86 = False
         else:
             raise NameError(f"Invalid target platform '{opts.platform}'")
 
-        opts.x64 = not opts.x86
+        opts.arm64 = opts.platform == "ARM64"
+        opts.x64 = not (opts.x86 or opts.arm64)
         # Setup the directory, used by check vs
         self.working_dir = os.path.join(
             opts.build_dir, "build", opts.platform, opts.configuration
@@ -93,8 +113,9 @@ class Builder:
         if not opts.use_env:
             self.__minimum_env()
 
-        self.x86 = opts.platform == "Win32"
-        self.x64 = not self.x86
+        self.x86 = opts.x86
+        self.x64 = opts.x64
+        self.arm64 = opts.arm64
 
         # Create the year version for Visual Studio
         vs_zip_parts = {
@@ -372,6 +393,18 @@ class Builder:
             if not os.path.exists(vcvars_bat):
                 vcvars_bat = os.path.join(
                     vs_path, "VC", "Auxiliary", "Build", "vcvars32.bat"
+                )
+        elif opts.platform == "ARM64":
+            # A native arm64 host compiles arm64, any other host (typically
+            # x64, native or emulated) has to cross compile and needs the
+            # x64-to-arm64 script.
+            if _host_is_arm64():
+                vcvars_bat = os.path.join(
+                    vs_path, "VC", "Auxiliary", "Build", "vcvarsarm64.bat"
+                )
+            else:
+                vcvars_bat = os.path.join(
+                    vs_path, "VC", "Auxiliary", "Build", "vcvarsamd64_arm64.bat"
                 )
         else:
             vcvars_bat = os.path.join(vs_path, "VC", "bin", "amd64", "vcvars64.bat")
@@ -969,7 +1002,12 @@ class Builder:
 
         # set platform
         rustup = os.path.join(cargo_bin, "rustup.exe")
-        arch = "i686" if self.x86 else "x86_64"
+        if self.x86:
+            arch = "i686"
+        elif self.arm64:
+            arch = "aarch64"
+        else:
+            arch = "x86_64"
         self.__execute(
             [rustup, "default", f"{rust_version}-{arch}-pc-windows-msvc"],
             env=env,
@@ -1076,8 +1114,34 @@ class Builder:
     def __add_path(self, env, folder):
         key = next((k for k in env if k.lower() == "path"), None)
         if key:
-            env[key] = f"{env[key]};{folder}"
+            env[key] = f"{self.__without_foreign_msys(env[key], folder)};{folder}"
         else:
             key = "path"
             env[key] = folder
         log.debug(f"Changed path env variable to '{env[key]}'")
+
+    def __without_foreign_msys(self, path, folder):
+        """Drop other msys runtimes (Git for Windows' usr\\bin) from PATH when
+        msys2's tools are added.
+
+        msys2 goes at the end of PATH so that its link.exe cannot shadow MSVC's,
+        which lets an earlier msys runtime win for cat, mv & co. Two
+        msys-2.0.dll runtimes disagree on what /tmp is: libvpx's configure, run
+        by msys2's bash, wrote its probes to one /tmp while Git's cat and mv
+        looked in the other, so every check failed silently and the Makefile
+        came out with no targets to build.
+        """
+        if not self.opts.msys_dir:
+            return path
+        msys = Path(self.opts.msys_dir, "usr", "bin")
+        if Path(folder) != msys:
+            return path
+
+        def is_foreign(entry):
+            return (
+                bool(entry)
+                and Path(entry) != msys
+                and (Path(entry) / "msys-2.0.dll").is_file()
+            )
+
+        return ";".join(e for e in path.split(";") if not is_foreign(e))
