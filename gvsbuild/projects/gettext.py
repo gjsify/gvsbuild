@@ -56,9 +56,18 @@ class Gettext(Tarball, Project):
         )
         self.pop_location()
 
-        self.push_location(
-            rf".\nmake\vs{self.builder.opts.vs_ver}\{self.builder.opts.configuration}\{self.builder.opts.platform}"
+        # nmake names its output directory after detectenv-msvc.mak's VSVER, which stops
+        # at 17 for every MSVC from 19.30 on, VS 2026 included; vs_ver 18 would point at a
+        # directory that does not exist, and install() skips a glob that matches nothing,
+        # so the real intl.dll/intl.lib were silently dropped and glib fell back to
+        # proxy-libintl (a bindtextdomain that returns "/dummy" and never translates).
+        nmake_vs = min(int(self.builder.opts.vs_ver), 17)
+        out_dir = Path(
+            rf".\nmake\vs{nmake_vs}\{self.builder.opts.configuration}\{self.builder.opts.platform}"
         )
+        if not (Path(self.build_dir) / out_dir / "intl.dll").exists():
+            raise RuntimeError(f"gettext: no intl.dll under {out_dir}")
+        self.push_location(str(out_dir))
         self.install(r".\asprintf.dll bin")
         self.install(r".\asprintf.pdb bin")
         self.install(r".\intl.dll bin")
